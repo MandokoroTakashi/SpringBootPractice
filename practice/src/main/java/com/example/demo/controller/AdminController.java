@@ -3,32 +3,30 @@ package com.example.demo.controller;
 import java.util.List;
 import java.util.Optional;
 
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.validation.BindingResult;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 
-import com.example.demo.entity.Admin;
 import com.example.demo.entity.Contact;
-import com.example.demo.repository.AdminRepository;
-import com.example.demo.repository.ContactRepository;
+import com.example.demo.form.AdminForm;
+import com.example.demo.service.AdminService;
+import com.example.demo.service.ContactService;
 
 @Controller
 @RequestMapping("/admin")
 public class AdminController {
-    private final AdminRepository adminRepository;
-    private final PasswordEncoder passwordEncoder;
-	private final ContactRepository contactRepository;
+    private final AdminService adminService;
+    private final ContactService contactService;
 
-    public AdminController(ContactRepository contactRepository ,AdminRepository adminRepository, PasswordEncoder passwordEncoder) {
-        this.contactRepository = contactRepository;
-        this.adminRepository = adminRepository;
-        this.passwordEncoder = passwordEncoder;
+    public AdminController(AdminService adminService ,ContactService contactService) {
+    	this.adminService = adminService;
+        this.contactService = contactService;
     }
 
     // サインアップ画面
@@ -39,19 +37,11 @@ public class AdminController {
 
     // サインアップ処理
     @PostMapping("/signup")
-    public String signup(
-            @RequestParam String firstName,
-            @RequestParam String lastName,
-            @RequestParam String email,
-            @RequestParam String password,
-            Model model) {
-        Admin admin = new Admin();
-        admin.setFirstName(firstName);
-        admin.setLastName(lastName);
-        admin.setEmail(email);
-        admin.setPassword(passwordEncoder.encode(password)); // パスワードのハッシュ化
-        adminRepository.save(admin);
-        model.addAttribute("message", "管理者登録が完了しました！");
+    public String signup(@Validated @ModelAttribute("contactForm") AdminForm adminForm, BindingResult errorResult) {
+		if(errorResult.hasErrors()) {
+			return "adimin/signup";
+		}
+		adminService.registerAdmin(adminForm);
         return "redirect:/admin/signin";
     }
     
@@ -64,7 +54,7 @@ public class AdminController {
     // お問い合わせ一覧画面の表示
     @GetMapping("/contacts")
     public String contacts(Model model) {
-        List<Contact> contactList = contactRepository.findAll();
+        List<Contact> contactList = contactService.getContactsAll();
         model.addAttribute("contacts", contactList);
         return "admin/contacts";
     }
@@ -72,7 +62,7 @@ public class AdminController {
     // お問い合わせ詳細画面の表示
     @GetMapping("/contacts/{id}")
     public String showContactDetail(@PathVariable Long id, Model model) {
-        Optional<Contact> contact = contactRepository.findById(id);
+        Optional<Contact> contact = contactService.getContact(id);
         if (contact.isPresent()) {
             model.addAttribute("contact", contact.get());
             return "admin/contact_detail";
@@ -84,7 +74,7 @@ public class AdminController {
     // 編集画面の表示
     @GetMapping("/contacts/{id}/edit")
     public String editContact(@PathVariable Long id, Model model) {
-        Optional<Contact> contact = contactRepository.findById(id);
+        Optional<Contact> contact = contactService.getContact(id);
         if (contact.isPresent()) {
             model.addAttribute("contact", contact.get());
             return "admin/contact_edit";
@@ -96,25 +86,14 @@ public class AdminController {
     // お問い合わせの更新処理
     @PostMapping("/contacts/{id}/edit")
     public String updateContact(@PathVariable Long id, @ModelAttribute Contact updatedContact) {
-        contactRepository.findById(id).ifPresent(contact -> {
-            contact.setLastName(updatedContact.getLastName());
-            contact.setFirstName(updatedContact.getFirstName());
-            contact.setEmail(updatedContact.getEmail());
-            contact.setPhone(updatedContact.getPhone());
-            contact.setZipCode(updatedContact.getZipCode());
-            contact.setAddress(updatedContact.getAddress());
-            contact.setBuildingName(updatedContact.getBuildingName());
-            contact.setContactType(updatedContact.getContactType());
-            contact.setBody(updatedContact.getBody());
-            contactRepository.save(contact);
-        });
+    	contactService.updateContact(id, updatedContact);
         return "redirect:/admin/contacts";
     }
 
     // お問い合わせの削除処理
     @PostMapping("/contacts/{id}/delete")
     public String deleteContact(@PathVariable Long id) {
-        contactRepository.deleteById(id);
+        contactService.deleteContact(id);
         return "redirect:/admin/contacts";
     }
 }
